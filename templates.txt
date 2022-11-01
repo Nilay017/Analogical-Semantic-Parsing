@@ -1,0 +1,10 @@
+goto box
+pickup box
+place box
+goto red box
+goto apple
+goto officeRoom
+pickup apple
+pickup orange
+place apple
+fill sink
