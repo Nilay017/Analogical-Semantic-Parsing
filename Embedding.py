@@ -1,22 +1,10 @@
-import json
-import os
-from sys import prefix
-
-import numpy as np
-import pandas as pd
 import torch
-from torch.utils.data import Dataset, DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import nltk
-# nltk.download('punkt')
+nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 
 from scipy.optimize import linear_sum_assignment
-import wandb
-
-import pdb
 
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -36,12 +24,7 @@ T5_MODEL_TYPE = "Vamsi/T5_Paraphrase_Paws"
 T5_CHECKPOINT_PATH = "/projects/katefgroup/language_grounding/simbot/t5_best.pt"
 SIMBOT_DIR = '/projects/katefgroup/language_grounding/simbot'
 FINETUNED = False
-
-def load_json(path):
-    with open(path, 'r') as f:
-        data = json.load(f)
-    return data
-
+TEMPLATE_INSTRUCTIONS = './template_instructions.txt'
 
 # Mean Pooling - Take attention mask into account for correct averaging
 def mean_pooling(token_embeddings, attention_mask):
@@ -49,45 +32,67 @@ def mean_pooling(token_embeddings, attention_mask):
     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
 class NearestNeighbor:
-    def __init__(self, T5_checkpoint_path=T5_CHECKPOINT_PATH, T5_model_type=T5_MODEL_TYPE, template_instructions='./templates.txt', device=DEVICE, seed=SEED) -> None:
+    def __init__(self, T5_checkpoint_path=T5_CHECKPOINT_PATH, T5_model_type=T5_MODEL_TYPE, template_instructions=TEMPLATE_INSTRUCTIONS, device=DEVICE, seed=SEED) -> None:
         self.device = device
         self.T5_checkpoint = T5_checkpoint_path
         self.T5_model_type = T5_model_type
         self.template_instructions = template_instructions
         self.seed = seed
         self.parser_model, self.tokenizer = self.load_model()
-        self.gram = ("NP: {<DT>?<JJ>*<NN>}") # chunking grammar
-        self.chunker = nltk.RegexpParser(self.gram)
         
+        # Noun phrase regex
+        self.noun_grammar = ("NP: {<JJ>*<NN>}")
+        self.noun_chunker = nltk.RegexpParser(self.noun_grammar)
+        
+        # Action phrase regex
+        self.action_grammar = ("VP: {<VB.*><RB.?>?}")
+        self.action_chunker = nltk.RegexpParser(self.action_grammar)
+                
         # load template instructions
         with open(self.template_instructions) as f:
             self.neighbors = f.read().splitlines() 
-
-        print(self.neighbors)
+            
+        # remove empty strings
+        self.neighbors = list(filter(None, self.neighbors))
                
         # load template embeddings
         embeddings = []
         neighbor_noun_embeddings = []
+        neighbor_verb_embeddings = []
         for neighbor in self.neighbors:
-            sent_embedding, noun_phrase_embeddings = self.get_final_embedding(neighbor)
+            sent_embedding, noun_phrase_embeddings, verb_phrase_embeddings = self.get_final_embedding(neighbor)
             embeddings.append(sent_embedding)
             neighbor_noun_embeddings.append(noun_phrase_embeddings)
+            neighbor_verb_embeddings.append(verb_phrase_embeddings)
             
         # stack embeddings
         self.neighbor_sentence_embeddings = torch.stack(embeddings)
         # neighbour noun phrase embeddings
         self.neighbor_noun_phrase_embeddings = neighbor_noun_embeddings
+        # neighbour verb phrase embeddings
+        self.neighbor_verb_phrase_embeddings = neighbor_verb_embeddings
         
         print("--- NearestNeighbor initialized ---")
         
         
-    def get_topk_results(self, noun_phrase_embeddings, neighbor_noun_embeddings_list, neighbors, k=10):
+    def get_topk_results(self, phrase_embeddings, neighbor_phrase_embeddings_list, neighbors, k=10):
+        
+        noun_phrase_embeddings, verb_phrase_embeddings = phrase_embeddings
+        neighbor_noun_embeddings_list, neighbor_verb_embeddings_list = neighbor_phrase_embeddings_list
+        
         # sort using hungarian loss
         losses = []
         for i in range(len(neighbor_noun_embeddings_list)):
             neighbor_noun_embeddings = neighbor_noun_embeddings_list[i]
-            loss = self.get_hungarian_loss(noun_phrase_embeddings, neighbor_noun_embeddings)
-            losses.append(loss)
+            neighbor_verb_embeddings = neighbor_verb_embeddings_list[i]
+            noun_loss = torch.tensor(0)
+            verb_loss = torch.tensor(0)
+            if len(neighbor_noun_embeddings) != 0 and len(noun_phrase_embeddings) != 0:
+                noun_loss = self.get_hungarian_loss(noun_phrase_embeddings, neighbor_noun_embeddings)
+            if len(neighbor_verb_embeddings) != 0 and len(verb_phrase_embeddings) != 0:
+                verb_loss = self.get_hungarian_loss(verb_phrase_embeddings, neighbor_verb_embeddings)
+            losses.append(noun_loss + verb_loss)
+            
         losses = torch.stack(losses)
         topk_idx = losses.topk(k)[1]
         topk_results = []
@@ -100,11 +105,12 @@ class NearestNeighbor:
         # pdb.set_trace()
         # get cosine similarity matrix
         sim_matrix = []
-        for neighbor_noun_embedding in neighbor_noun_embeddings:
+        for noun_phrase_embedding in noun_phrase_embeddings:
             sim_row = []
-            for noun_phrase_embedding in noun_phrase_embeddings:
+            for neighbor_noun_embedding in neighbor_noun_embeddings:            
                 sim_row.append(torch.cosine_similarity(noun_phrase_embedding.unsqueeze(0), neighbor_noun_embedding.unsqueeze(0)))
             sim_matrix.append(torch.tensor(sim_row))
+            
         sim_matrix = torch.stack(sim_matrix)
         
         # get hungarian loss
@@ -112,32 +118,41 @@ class NearestNeighbor:
         loss = sim_matrix[row_ind, col_ind].sum()
         return loss
         
-    def get_noun_phrases(self, sentence):
+    def get_phrases(self, sentence, chunker, label='NP'):
         # tokenize sentence
         tokenized = nltk.word_tokenize(sentence) 
         # tag parts of speech
         tagged = nltk.pos_tag(tokenized)
         # chunk with grammar
-        tree = self.chunker.parse(tagged)
+        tree = chunker.parse(tagged)
         # extract noun phrases
-        noun_phrases = []
+        phrases = []
         for subtree in tree.subtrees():
-            if subtree.label() == 'NP':
+            if subtree.label() == label:
                 t = [w for w, t in subtree.leaves()]
-                noun_phrases.append(' '.join(t))
-        return noun_phrases
+                phrases.append(' '.join(t))
+                
+        return phrases
     
     def get_final_embedding(self, utterance):
         sentence_embedding = self.get_language_embedding(utterance)
 
-        noun_phrases = self.get_noun_phrases(utterance)        
+        noun_phrases = self.get_phrases(utterance, self.noun_chunker, label='NP')
+        verb_phrases = self.get_phrases(utterance, self.action_chunker, label='VP')
+                      
         # Convert Noun Phrases to embeddings
         noun_phrase_embeddings = []
         for noun_phrase in noun_phrases:
             noun_phrase_embeddings.append(self.get_language_embedding(noun_phrase))
+            
+            
+        # Convert Verb Phrases to embeddings
+        verb_phrase_embeddings = []
+        for verb_phrase in verb_phrases:
+            verb_phrase_embeddings.append(self.get_language_embedding(verb_phrase))
         
         # Stack Embeddings to get final vector (N X 768)
-        return (sentence_embedding, noun_phrase_embeddings)
+        return (sentence_embedding, noun_phrase_embeddings, verb_phrase_embeddings)
         
     @torch.no_grad()
     def run_t5_parser(self, utterance):
@@ -202,7 +217,7 @@ class NearestNeighbor:
     
     @torch.no_grad()
     def get_nearest_neighbors(self, utterance, k=5):
-        sent_embedding, noun_phrase_embeddings = self.get_final_embedding(utterance)
+        sent_embedding, noun_phrase_embeddings, verb_phrase_embeddings = self.get_final_embedding(utterance)
         
         # Retrieve using sentence embedding
         cos_sim = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -211,18 +226,29 @@ class NearestNeighbor:
         
         # Get topk neighbors
         neighbour_noun_embeddings_list = []
+        neighbour_verb_embeddings_list = []
         neighbours_list = []
         for i in range(len(idx)):
             neighbour_noun_embeddings_list.append(self.neighbor_noun_phrase_embeddings[idx[i]])
+            neighbour_verb_embeddings_list.append(self.neighbor_verb_phrase_embeddings[idx[i]])
             neighbours_list.append(self.neighbors[idx[i]])
             
         # Get topk neighbors using hungarian loss
-        final_nearest_neighbors = self.get_topk_results(noun_phrase_embeddings, neighbour_noun_embeddings_list, neighbours_list, k)
+        final_nearest_neighbors = self.get_topk_results((noun_phrase_embeddings, verb_phrase_embeddings), (neighbour_noun_embeddings_list, neighbour_verb_embeddings_list), neighbours_list, k=5)
         return final_nearest_neighbors        
 
 
 if __name__ == '__main__':
     nn = NearestNeighbor()
     # neighbors = nn.get_nearest_neighbors(['go to the red box and pick up the red block'])
-    neighbors = nn.get_nearest_neighbors('goto apple')
+    neighbors = nn.get_nearest_neighbors('go to the apple', k=20)
+    print(neighbors)
+    
+    neighbors = nn.get_nearest_neighbors('goto apple', k=20)
+    print(neighbors)
+    
+    neighbors = nn.get_nearest_neighbors('move towards apple', k=20)
+    print(neighbors)
+    
+    neighbors = nn.get_nearest_neighbors('pick up the apple', k=20)
     print(neighbors)

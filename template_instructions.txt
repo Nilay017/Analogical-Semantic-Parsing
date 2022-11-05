@@ -1,0 +1,187 @@
+break the bowl
+break the floppy disk
+break the mug
+break the plate
+break the record
+break the trophy
+clean it in the sink
+close the counter
+close the freezer
+close the fridge
+close the microwave
+close the time machine
+fill it in the sink
+go to the break room
+go to the coffee maker
+go to the coffee unmaker
+go to the color changer
+go to the computer
+go to the counter
+go to the counter top
+go to the desk
+go to the freezer
+go to the fridge
+go to the laser
+go to the main office
+go to the manager office
+go to the microwave
+go to the printer
+go to the quantum lab
+go to the reception room
+go to the robotics lab
+go to the shelf
+go to the sink
+go to the table
+go to the time machine
+look around
+loook down
+loook up
+move backward
+move forward
+open the counter
+open the freezer
+open the fridge
+open the microwave
+open the time machine
+pick up the action figure
+pick up the apple
+pick up the apple slice
+pick up the banana
+pick up the bowl
+pick up the bread slice
+pick up the broken antivirus floppy disk
+pick up the broken laser tip
+pick up the broken radio
+pick up the burger
+pick up the cake
+pick up the cake slice
+pick up the can
+pick up the candy bar
+pick up the carrot
+pick up the cereal box
+pick up the circuit board
+pick up the coffee beans
+pick up the coffee pot
+pick up the computer
+pick up the control panel
+pick up the cup
+pick up the dart
+pick up the donut
+pick up the fan
+pick up the figure print cartridge
+pick up the fire extinguisher
+pick up the floppy disk
+pick up the fork
+pick up the hammer
+pick up the hammer print cartridge
+pick up the jelly
+pick up the knife
+pick up the laser tip
+pick up the lever
+pick up the lever print cartridge
+pick up the lid
+pick up the loaf of bread
+pick up the milk
+pick up the mug
+pick up the mug printer cartridge
+pick up the peanut butter
+pick up the peanut butter and jelly sandwich
+pick up the pear
+pick up the pie
+pick up the pie slice
+pick up the plate
+pick up the printer cartridge
+pick up the radio
+pick up the record
+pick up the sandwich
+pick up the saw
+pick up the screw driver
+pick up the spoon
+pick up the toast
+pick up the trophy
+pick up the wet floor sign
+place it on the color changer
+place it on the computer
+place it on the counter
+place it on the desk
+place it on the freezer
+place it on the fridge
+place it on the laser
+place it on the microwave
+place it on the printer
+place it on the shelf
+place it on the table
+place it on the time machine
+pour it into the bowl
+pour it into the coffee maker
+pour it into the coffee pot
+pour it into the coffee unmaker
+pour it into the mug
+scan the action figure
+scan the apple
+scan the apple slice
+scan the banana
+scan the bowl
+scan the boxes
+scan the bread slice
+scan the broken antivirus floppy disk
+scan the broken laser tip
+scan the broken radio
+scan the burger
+scan the cake
+scan the cake slice
+scan the can
+scan the candy bar
+scan the carrot
+scan the cereal box
+scan the circuit board
+scan the coffee beans
+scan the coffee pot
+scan the computer
+scan the control panel
+scan the cup
+scan the dart
+scan the donut
+scan the fan
+scan the figure print cartridge
+scan the fire extinguisher
+scan the floppy disk
+scan the fork
+scan the hammer
+scan the hammer print cartridge
+scan the jelly
+scan the knife
+scan the laser tip
+scan the lever
+scan the lever print cartridge
+scan the lid
+scan the loaf of bread
+scan the milk
+scan the mug
+scan the mug printer cartridge
+scan the peanut butter
+scan the peanut butter and jelly sandwich
+scan the pear
+scan the pie
+scan the pie slice
+scan the plate
+scan the printer cartridge
+scan the radio
+scan the record
+scan the sandwich
+scan the saw
+scan the screw driver
+scan the spoon
+scan the toast
+scan the trophy
+scan the wet floor sign
+toggle the blue button
+toggle the computer
+toggle the green button
+toggle the microwave
+toggle the printer
+toggle the red button
+toggle the sink
+toggle the time machine
+turn left
+turn right
